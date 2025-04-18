@@ -1,5 +1,6 @@
 #include "WiFiWrapper.h"
 
+
 void WiFiWrapper::begin() {
     wifiShouldBeActive=true;
     Serial.println("Initializing WiFi...");
@@ -22,14 +23,6 @@ void WiFiWrapper::begin() {
     } else {
         Serial.println("\nWiFi Connection Failed!");
     }
-    reconnectScheduler.stop();
-    reconnectScheduler.addTimedTask([this]() {
-        checkAndReconnect();
-    }, 
-    5*60*1000, //delay 5 minutes
-    true,  //repeat
-    5*60*1000);//repeat every 5 minutes 
-
     configureLowPowerMode();  // Apply low power settings
 }
 
@@ -37,8 +30,19 @@ void WiFiWrapper::stop(){
     WiFi.disconnect(); 
     WiFi.mode(WIFI_OFF);
     wifiShouldBeActive=false;
-    reconnectScheduler.stop();
-    scheduler.stop();
+}
+
+void WiFiWrapper::loop() { 
+    if (!wifiShouldBeActive) return;
+    //check the timers manually here
+    uint32_t now = millis();
+    if(now - lastReconnectAttempt > reconnectInterval){
+        lastReconnectAttempt = now;
+        checkAndReconnect();
+    }
+    if(autoSleep && ! WiFi.getSleep() && (now - sleepTimerStartedAt) > wakeDuration){
+        WiFi.setSleep(true);
+    } 
 }
 
 void WiFiWrapper::disconnect() {
@@ -47,7 +51,6 @@ void WiFiWrapper::disconnect() {
 }
 
 void WiFiWrapper::checkAndReconnect() {
-    Serial.println("Checking WiFi connection...");
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("WiFi lost! Attempting to reconnect...");
         WiFi.disconnect();
@@ -64,17 +67,15 @@ void WiFiWrapper::configureLowPowerMode() {
 }
 
 void WiFiWrapper::keepWiFiAwake() {
-    Serial.println("Extending WiFi wake time...");
-    lastWakeTime = millis();
-    
-    if (WiFi.getSleep()) {  // Only disable sleep if it's currently enabled
-        WiFi.setSleep(false);
-    }
-
-    //remove previously pending tasks next loop
-    scheduler.stop();
-    scheduler.addTimedTask([this]() { WiFi.setSleep(true); }, 
-    wakeDuration, //delay
-    false);//don't repeat
+    WiFi.setSleep(false);
+    sleepTimerStartedAt = millis();
 }
 
+void  WiFiWrapper::stayUp(){
+    autoSleep = false;
+    WiFi.setSleep(false);
+    sleepTimerStartedAt = millis(); 
+}
+void  WiFiWrapper::backToAutoSleep(){
+    autoSleep = true;
+}
