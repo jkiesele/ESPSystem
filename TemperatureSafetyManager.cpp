@@ -4,11 +4,13 @@
 #include "throttle.h"
 
 #ifdef TEMP_SAFETY_USES_WEBLOG
-#include "Log.h"
+#include "WebLog.h"
 #else //MOCK class
 class WebLog {
 public:
-    void addToLog(const String& message) { /* Mock implementation */ }
+    void addToLog(const String& message) { //pipe to serial
+    Serial.println(message);    
+    }
 } webLog;
 #endif
 
