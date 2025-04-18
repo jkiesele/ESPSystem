@@ -2,17 +2,7 @@
 #include <WiFi.h>
 #include "esp_wifi.h"
 #include "throttle.h"
-
-#ifdef TEMP_SAFETY_USES_WEBLOG
-#include "WebLog.h"
-#else //MOCK class
-class WebLog {
-public:
-    void addToLog(const String& message) { //pipe to serial
-    Serial.println(message);    
-    }
-} webLog;
-#endif
+#include <LoggingBase.h>
 
 #include "WiFiWrapper.h"
 
@@ -37,13 +27,13 @@ void TemperatureSafetyManager::manageTemperatureSafety() {
     if (temp >= TEMP_DISABLE_WIFI && !wifiDisabled && wifi) {
         wifi->stop();  // Turn off WiFi completely
         wifiDisabled = true;
-        webLog.addToLog("WiFi disabled due to high temperature.");
+        gLogger->println("WiFi disabled due to high temperature.");
     } 
 
     if (temp >= TEMP_REDUCE_WIFI_POWER && !lowPowerMode && wifi) {
         wifi->configureLowPowerMode();  // Lower WiFi TX power
         lowPowerMode = true;
-        webLog.addToLog("WiFi power reduced due to high temperature.");
+        gLogger->println("WiFi power reduced due to high temperature.");
     }
 
     //this can be silent
@@ -57,12 +47,12 @@ void TemperatureSafetyManager::manageTemperatureSafety() {
     if (temp <= TEMP_RESTORE_WIFI_POWER && lowPowerMode && wifi) {
         wifi->configureNormalPowerMode();  // Restore full WiFi power
         lowPowerMode = false;
-        webLog.addToLog("WiFi power restored due to lower temperature.");
+        gLogger->println("WiFi power restored due to lower temperature.");
     }
 
     if (temp <= TEMP_RESTORE_WIFI && wifiDisabled && wifi) {
         wifi->resume();  // Turn WiFi back on
         wifiDisabled = false;
-        webLog.addToLog("WiFi restored due to lower temperature.");
+        gLogger->println("WiFi restored due to lower temperature.");
     }
 }

@@ -6,13 +6,14 @@
 #include "esp_wifi.h"
 #include <WiFiUdp.h>
 #include <time.h>
+#include <TimeProviderBase.h>
 
 static const uint32_t SECOND = 1000;  // 1 second = 1000 ms
 static const uint32_t MINUTE = 60 * SECOND;  // 60,000 ms
 static const uint32_t HOUR   = 60 * MINUTE;  // 3,600,000 ms
 static const uint32_t DAY    = 24 * HOUR;    // 86,400,000 ms
 
-class TimeManager {
+class TimeManager: public TimeProviderBase {
 private:
     WiFiUDP ntpUDP;
     NTPClient timeClient;
