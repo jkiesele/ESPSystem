@@ -69,7 +69,7 @@ public:
         return candidate;
     }
 
-    uint32_t secondsUntilWeHit(int hours, int minutes = 0){
+    uint32_t getSecondsUntilWeHit(int hours, int minutes = 0){
         uint32_t now = getUnixTime();
         uint32_t target = getUnixNextTimeWeHit(hours, minutes);
         return target - now;
