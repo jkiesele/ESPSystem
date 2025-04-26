@@ -31,6 +31,12 @@ public:
         return timeClient.getHours();
     }
 
+    uint32_t getDay(uint32_t rawTime=0) const {
+        if(rawTime == 0)
+            rawTime = timeClient.getEpochTime();
+        return (((rawTime  / 86400L) + 4 ) % 7);
+    }
+
     bool isNightTime() {
         int hour = getHour();
         return (hour >= 22 || hour < 7);

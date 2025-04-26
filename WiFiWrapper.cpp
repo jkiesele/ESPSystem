@@ -59,11 +59,17 @@ void WiFiWrapper::checkAndReconnect() {
     }
 }
 
-void WiFiWrapper::configureLowPowerMode() {
-    Serial.println("Configuring Low Power Mode...");
-    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Enable power-saving mode
-    esp_wifi_set_max_tx_power(8);  // Reduce TX power to save energy
-    WiFi.setSleep(true);  // Allow WiFi sleep when idle
+void WiFiWrapper::configureLowPowerMode(bool enable) {
+    if(enable){
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Enable power-saving mode
+        esp_wifi_set_max_tx_power(8);  // Reduce TX power to save energy
+        WiFi.setSleep(true);  // Allow WiFi sleep when idle
+    }
+    else{
+        esp_wifi_set_ps(WIFI_PS_NONE);  // Disable power-saving mode
+        esp_wifi_set_max_tx_power(20);  // Set TX power to maximum
+        WiFi.setSleep(false);  // Disable WiFi sleep
+    }
 }
 
 void WiFiWrapper::keepWiFiAwake() {

@@ -29,8 +29,13 @@ public:
     void loop();
     void disconnect();
     void checkAndReconnect();
-    void configureLowPowerMode();
-    void configureNormalPowerMode(){}//nothing here
+    void configureLowPowerMode(bool enable=true);
+    void configureFullPowerMode(){
+        configureLowPowerMode(false);
+    }//nothing here
+    void configureNormalPowerMode(){//FIXME with a better implementation
+        configureLowPowerMode(true);
+    }//nothing here
     void keepWiFiAwake();
 
     //wakes up the wifi if it was asleep
