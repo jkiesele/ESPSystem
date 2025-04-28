@@ -17,12 +17,23 @@ private:
     uint32_t lastReconnectAttempt = 0;
     uint32_t sleepTimerStartedAt = 0;
 
+    bool alwaysOn = false;
+
 public:
+    enum class SignalLevel {
+        EXCELLENT,
+        GOOD,
+        FAIR,
+        POOR,
+        VERY_POOR,
+        DISCONNECTED
+    };
+
     WiFiWrapper(const char* ssid, const char* password)
         : ssid(ssid), password(password) {}
 
     void begin(bool connectToNetwork=true, bool lowPowerMode=true);
-    void connect();
+    bool connect();
     void resume(){ begin(); }
     void disconnect();
     //after stop begin() must be called again to recover
@@ -37,6 +48,13 @@ public:
     void configureNormalPowerMode(){//FIXME with a better implementation
         configureFullPowerMode();
     }//nothing here
+
+    // Returns current RSSI in dBm (negative value; e.g., -40 is strong, -90 is weak)
+    // If not connected, returns -127
+    int32_t getSignalStrength() const;
+    SignalLevel classifySignalLevel(int32_t rssi) const;
+
+
     //pings and keep awake for another 30 seconds
     void keepWiFiAwake();
 
@@ -45,6 +63,9 @@ public:
     //goes back to sleep only if device was in sleep before calling wakeUp; does not interfere with auto sleep if enabled
     //also does not enable auto sleep if it was not enabled
     void backToAutoSleep();
+
+    // this is mostly for debugging, reject any state changes from on and connected, even if disconnect etc is called
+    void setAlwaysOn(bool set);
 };
 
 #endif
