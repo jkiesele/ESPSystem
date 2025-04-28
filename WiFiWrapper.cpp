@@ -1,14 +1,23 @@
 #include "WiFiWrapper.h"
+#include <LoggingBase.h>
 
 
-void WiFiWrapper::begin() {
-    wifiShouldBeActive=true;
-    Serial.println("Initializing WiFi...");
+void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode) {
+    
+    gLogger->println("Initializing WiFi...");
     WiFi.mode(WIFI_STA);  // Only connect to router, no AP mode
     WiFi.persistent(false);  // Prevent storing credentials
+    if(lowPowerMode)
+        configureLowPowerMode(); 
+    if(connectToNetwork)
+        connect() ;
+}
+
+void WiFiWrapper::connect(){
+    wifiShouldBeConnected=true;
     WiFi.begin(ssid, password);
 
-    Serial.print("Connecting to WiFi");
+    gLogger->print("Connecting to WiFi");
     int attempt = 0;
     while (WiFi.status() != WL_CONNECTED && attempt < 30) {
         delay(200);
@@ -17,23 +26,25 @@ void WiFiWrapper::begin() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nWiFi Connected!");
-        Serial.print("IP Address: ");
-        Serial.println(WiFi.localIP());
+        gLogger->print("\nWiFi Connected! ");
+        gLogger->print("IP Address: ");
+        gLogger->println(WiFi.localIP());
     } else {
-        Serial.println("\nWiFi Connection Failed!");
+        gLogger->println("\nWiFi Connection Failed!");
     }
-    configureLowPowerMode();  // Apply low power settings
 }
 
-void WiFiWrapper::stop(){ 
+void WiFiWrapper::disconnect(){
     WiFi.disconnect(); 
+    wifiShouldBeConnected=false;
+}
+void WiFiWrapper::stop(){ 
+    disconnect();
     WiFi.mode(WIFI_OFF);
-    wifiShouldBeActive=false;
 }
 
 void WiFiWrapper::loop() { 
-    if (!wifiShouldBeActive) return;
+    if (!wifiShouldBeConnected) return;
     //check the timers manually here
     uint32_t now = millis();
     if(now - lastReconnectAttempt > reconnectInterval){
@@ -43,11 +54,6 @@ void WiFiWrapper::loop() {
     if(autoSleep && ! WiFi.getSleep() && (now - sleepTimerStartedAt) > wakeDuration){
         WiFi.setSleep(true);
     } 
-}
-
-void WiFiWrapper::disconnect() {
-    WiFi.disconnect();
-    Serial.println("WiFi Disconnected");
 }
 
 void WiFiWrapper::checkAndReconnect() {
