@@ -22,10 +22,15 @@ private:
     bool isSummerTime(uint32_t rawTime) const; //in UTC
 
 public:
-    TimeManager() : timeClient(ntpUDP, "pool.ntp.org", 0) {}
+    TimeManager() : timeClient(ntpUDP, "pool.ntp.org", 0) {
+        timeClient.setUpdateInterval(10UL * 60UL * SECOND); // Update every ten minutes
+    }
 
     void begin();
     void syncTime();
+    void loop() {
+        timeClient.update();
+    }
 
     int getHour() {
         return timeClient.getHours();
