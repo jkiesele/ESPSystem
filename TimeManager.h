@@ -8,6 +8,9 @@
 #include <time.h>
 #include <TimeProviderBase.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 static const uint32_t SECOND = 1000;  // 1 second = 1000 ms
 static const uint32_t MINUTE = 60 * SECOND;  // 60,000 ms
 static const uint32_t HOUR   = 60 * MINUTE;  // 3,600,000 ms
@@ -21,19 +24,55 @@ private:
 
     bool isSummerTime(uint32_t rawTime) const; //in UTC
 
+    SemaphoreHandle_t   _lock;         // protects timeClient / timeOffset
+    TaskHandle_t        _syncTaskHandle;
+
+    static void        _syncTask(void* pvParameters);
+    void syncTime();//now private as it requires a lock
+
 public:
     TimeManager() : timeClient(ntpUDP, "pool.ntp.org", 0) {
-        timeClient.setUpdateInterval(10UL * 60UL * SECOND); // Update every ten minutes
+        _lock = xSemaphoreCreateMutex();
+        _syncTaskHandle = nullptr;
+    }
+    ~TimeManager(){
+        if(_syncTaskHandle){
+          vTaskDelete(_syncTaskHandle);
+        }
+        if(_lock){
+          vSemaphoreDelete(_lock);
+        }
     }
 
     void begin();
-    void syncTime();
     void loop() {
-        timeClient.update();
+        //empty
     }
 
-    int getHour() {
-        return timeClient.getHours();
+    int getHours() {
+        int h = 0;
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            h = timeClient.getHours();
+            xSemaphoreGive(_lock);
+        }
+        return h;
+    }
+    int getHour(){return getHours();} // for compatibility with other classes
+    int getMinutes() {
+        int m = 0;
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            m = timeClient.getMinutes();
+            xSemaphoreGive(_lock);
+        }
+        return m;
+    }
+    int getSeconds() {
+        int s = 0;
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            s = timeClient.getSeconds();
+            xSemaphoreGive(_lock);
+        }
+        return s;
     }
 
     uint32_t getDay(uint32_t rawTime=0) const {
@@ -42,22 +81,31 @@ public:
         return (((rawTime  / 86400L) + 4 ) % 7);
     }
 
+    uint32_t getEpochTime() {
+        uint32_t rawTime = 0;
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            rawTime = timeClient.getEpochTime();
+            xSemaphoreGive(_lock);
+        }
+        return rawTime;
+    }
+
     bool isNightTime() {
         int hour = getHour();
         return (hour >= 22 || hour < 7);
     }
 
     int getSecondsOfDay() {
-        return timeClient.getHours() * 3600 + timeClient.getMinutes() * 60 + timeClient.getSeconds();
+        return getHours() * 3600 +  getMinutes() * 60 +  getSeconds();
     }
 
     uint32_t getUnixTime() {
-        return timeClient.getEpochTime(); 
+        return  getEpochTime(); 
     }
 
     uint32_t getUnixUTCTime(uint32_t localTime=0) {
         if(!localTime)
-            return timeClient.getEpochTime() - timeOffset; // Always return UTC
+            return  getEpochTime() - timeOffset; // Always return UTC
         return localTime - timeOffset;
     }
 
@@ -87,7 +135,12 @@ public:
     }
 
     String getFormattedTime() {
-        return timeClient.getFormattedTime();
+        String formattedTime;
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            formattedTime = timeClient.getFormattedTime();
+            xSemaphoreGive(_lock);
+        }
+        return formattedTime;
     }
     
     String getFormattedDateAndTime(uint32_t rawTime) const;

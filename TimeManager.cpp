@@ -1,4 +1,5 @@
 #include <TimeManager.h>
+#include <LoggingBase.h>
 
 // Helper: Convert a struct tm in UTC to time_t.
 // Use timegm() if available. On some systems you might need to implement your own.
@@ -9,11 +10,43 @@
 void TimeManager::begin() {
     timeClient.begin();
     syncTime();
+
+    BaseType_t ok =  xTaskCreatePinnedToCore(
+        &_syncTask,           // task function
+        "TimeSync",           // name
+        4*1024,               // stack size (bytes)
+        this,                 // parameter = our TimeManager*
+        tskIDLE_PRIORITY+1,   // priority
+        &_syncTaskHandle,     // handle
+        0                     // run on core 1 (or 0)
+      );
+    if (ok != pdPASS) {
+        gLogger->println("Failed to create TimeSync task");
+    }
 }
+
+void TimeManager::_syncTask(void* pvParameters){
+    auto self = static_cast<TimeManager*>(pvParameters);
+  
+    const TickType_t delayTicks = pdMS_TO_TICKS(60UL*60UL*1000UL);  // one hour
+  
+    for(;;){
+      vTaskDelay(delayTicks);
+  
+      // protect the NTP client
+      if(xSemaphoreTake(self->_lock, pdMS_TO_TICKS(500)) == pdTRUE){
+        self->syncTime();
+        xSemaphoreGive(self->_lock);
+      } else {
+        // if we cannot take the lock, skip this round
+        gLogger->println("TimeSync: failed to acquire lock");
+      }
+    }
+  }
 
 void TimeManager::syncTime() {
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("Synchronizing time with NTP...");
+        
         timeClient.setTimeOffset(0); // Ensure we start from UTC
         timeClient.update();
         
@@ -28,14 +61,6 @@ void TimeManager::syncTime() {
         // Apply DST offset
         time_t localTime = utcTime + timeOffset;
 
-        Serial.print("Current UTC Time: ");
-        Serial.println(timeClient.getFormattedTime());
-
-        Serial.print("Current Local Time (Berlin): ");
-        Serial.println(ctime(&localTime));  
-
-        Serial.print("DST Active: ");
-        Serial.println(summerTime ? "Yes" : "No");
 
         struct timeval tv;
         tv.tv_sec = localTime;
@@ -44,7 +69,7 @@ void TimeManager::syncTime() {
 
         timeClient.setTimeOffset(timeOffset); 
     } else {
-        Serial.println("WiFi not connected, cannot sync time!");
+        gLogger->println("WiFi not connected, cannot sync time!");
     }
 }
 

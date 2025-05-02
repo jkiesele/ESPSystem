@@ -89,7 +89,7 @@ void WiFiWrapper::configureLowPowerMode(bool enable) {
     }
     else{
         esp_wifi_set_ps(WIFI_PS_NONE);  // Disable power-saving mode
-        esp_wifi_set_max_tx_power(20);  // Set TX power to maximum
+        esp_wifi_set_max_tx_power(18);  // Set TX power to reasonable maximum (max is 20)
         WiFi.setSleep(false);  // Disable WiFi sleep
     }
 }
