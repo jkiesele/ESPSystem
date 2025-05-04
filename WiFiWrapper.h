@@ -3,6 +3,7 @@
 
 #include <WiFi.h>
 #include "esp_wifi.h"
+#include "LoggingBase.h"
 
 class WiFiWrapper {
 private:
@@ -48,6 +49,16 @@ public:
     void configureNormalPowerMode(){//FIXME with a better implementation
         configureFullPowerMode();
     }//nothing here
+    void setTXPower(uint8_t power){
+        //check if power is in range
+        if (power < 0 || power > 20) {
+            gLogger->println("Invalid TX power level. Must be between 0 and 20 dBm.");
+            return;
+        }
+        //cast to wifi_power_t
+        wifi_power_t wifiPower = static_cast<wifi_power_t>(power);
+        WiFi.setTxPower(wifiPower);
+    }
 
     // Returns current RSSI in dBm (negative value; e.g., -40 is strong, -90 is weak)
     // If not connected, returns -127

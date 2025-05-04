@@ -31,7 +31,7 @@ bool WiFiWrapper::connect(){
     if (WiFi.status() == WL_CONNECTED) {
         gLogger->print("\nWiFi Connected! ");
         gLogger->print("IP Address: ");
-        gLogger->println(WiFi.localIP());
+        gLogger->println(WiFi.localIP().toString());
         return true;
     } else {
         gLogger->println("\nWiFi Connection Failed!");
