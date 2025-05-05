@@ -12,7 +12,7 @@ private:
     bool wifiShouldBeConnected = true;
     bool autoSleep = true;
     unsigned long lastWakeTime = 0;
-    static constexpr uint32_t wakeDuration = 30000;  // Keep WiFi awake for 30s after activity
+    uint32_t wakeDuration = 30000;  // Keep WiFi awake for 30s after activity
     static constexpr uint32_t reconnectInterval = 60000; // 1 minute
     
     uint32_t lastReconnectAttempt = 0;
@@ -65,8 +65,10 @@ public:
     int32_t getSignalStrength() const;
     SignalLevel classifySignalLevel(int32_t rssi) const;
 
-
-    //pings and keep awake for another 30 seconds
+    void setWakeDuration(uint32_t duration) {
+        wakeDuration = duration;
+    }
+    //pings and keep awake for another wakeDuration seconds
     void keepWiFiAwake();
 
     //wakes up the wifi if it was asleep, and keeps it awake unless auto sleep is enabled again
