@@ -14,6 +14,9 @@ void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode) {
         configureLowPowerMode(); 
     else
         configureFullPowerMode();
+    setTXPower(8); // Start with 8 dBm
+    sleepTimerStartedAt  = millis();
+    lastReconnectAttempt = millis();
 }
 
 bool WiFiWrapper::connect(){
@@ -64,11 +67,12 @@ void WiFiWrapper::loop() {
         lastReconnectAttempt = now;
         checkAndReconnect();
     }
-    if( !alwaysOn &&
-        autoSleep && 
+    if(alwaysOn)
+        return; // no need to check sleep state
+    if( autoSleep && 
         ! WiFi.getSleep() && 
         (now - sleepTimerStartedAt) > wakeDuration){
-        WiFi.setSleep(true);
+        configureLowPowerMode();
     } 
 }
 
@@ -81,17 +85,25 @@ void WiFiWrapper::checkAndReconnect() {
     }
 }
 
-void WiFiWrapper::configureLowPowerMode(bool enable) {
-    if(enable){
-        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);  // Enable power-saving mode
-        esp_wifi_set_max_tx_power(8);  // Reduce TX power to save energy
-        WiFi.setSleep(true);  // Allow WiFi sleep when idle
+
+void WiFiWrapper::configureFullPowerMode() {
+    if(currentPowerState == PowerState::Full) return; // already in full power mode
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    // Arduino wrapper call (keeps the wrapper’s internal flag in sync)
+    WiFi.setSleep(false);
+    currentPowerState = PowerState::Full;
+    sleepTimerStartedAt = millis();   // reset your idle timer here, too
+    //if lastReconnectAttempt would reconnect immediately, reset it so it waits for 5 s at least
+    if(millis() - lastReconnectAttempt > reconnectInterval){
+        lastReconnectAttempt = millis() - reconnectInterval + 5000;
     }
-    else{
-        esp_wifi_set_ps(WIFI_PS_NONE);  // Disable power-saving mode
-        esp_wifi_set_max_tx_power(18);  // Set TX power to reasonable maximum (max is 20)
-        WiFi.setSleep(false);  // Disable WiFi sleep
-    }
+}
+
+void WiFiWrapper::configureLowPowerMode() {
+    if(currentPowerState == PowerState::Low) return; // already in low power mode
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    WiFi.setSleep(true);
+    currentPowerState = PowerState::Low;
 }
 
 int32_t WiFiWrapper::getSignalStrength() const {
@@ -119,14 +131,13 @@ WiFiWrapper::SignalLevel WiFiWrapper::classifySignalLevel(int32_t rssi) const {
 }
 
 void WiFiWrapper::keepWiFiAwake() {
-    WiFi.setSleep(false);
-    sleepTimerStartedAt = millis();
+   configureFullPowerMode();
+   sleepTimerStartedAt = millis();
 }
 
 void  WiFiWrapper::stayUp(){
+    configureFullPowerMode();
     autoSleep = false;
-    WiFi.setSleep(false);
-    sleepTimerStartedAt = millis(); 
 }
 void  WiFiWrapper::backToAutoSleep(){
     autoSleep = true;

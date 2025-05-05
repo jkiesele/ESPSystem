@@ -11,7 +11,6 @@ private:
     const char* password;
     bool wifiShouldBeConnected = true;
     bool autoSleep = true;
-    unsigned long lastWakeTime = 0;
     uint32_t wakeDuration = 30000;  // Keep WiFi awake for 30s after activity
     static constexpr uint32_t reconnectInterval = 60000; // 1 minute
     
@@ -19,6 +18,9 @@ private:
     uint32_t sleepTimerStartedAt = 0;
 
     bool alwaysOn = false;
+
+    enum class PowerState { Full, Low };
+    PowerState currentPowerState = PowerState::Full;  // or Low if you start that way
 
 public:
     enum class SignalLevel {
@@ -42,13 +44,10 @@ public:
     //call at least every few seconds, no need for fast polling
     void loop();
     void checkAndReconnect();
-    void configureLowPowerMode(bool enable=true);
-    void configureFullPowerMode(){
-        configureLowPowerMode(false);
-    }//nothing here
-    void configureNormalPowerMode(){//FIXME with a better implementation
-        configureFullPowerMode();
-    }//nothing here
+    void configureLowPowerMode();
+    void configureNormalPowerMode(){ configureLowPowerMode();} //compatibility
+    void configureFullPowerMode();
+    
     void setTXPower(uint8_t power){
         //check if power is in range
         if (power < 0 || power > 20) {
