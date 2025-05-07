@@ -2,6 +2,27 @@
 #include <LoggingBase.h>
 
 
+static WiFiWrapper* instance = nullptr;
+
+
+static void wifiStatusComplete(void* arg) {
+    vTaskDelay(pdMS_TO_TICKS(10));  // wait 10ms for hardware to adjust
+    instance->_setStateReady(true);
+    vTaskDelete(NULL);  
+}
+
+
+WiFiWrapper::WiFiWrapper(const char* ssid, const char* password)
+: ssid(ssid), password(password) {
+    if (instance != nullptr) {
+        gLogger->println("WiFiWrapper instance already exists. Only one instance is allowed.");
+        abort();
+    }
+    instance = this;
+    autoSleep = true;
+    alwaysOn = false;
+}
+
 void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode) {
     
     gLogger->println("Initializing WiFi...");
@@ -89,6 +110,7 @@ void WiFiWrapper::checkAndReconnect() {
 void WiFiWrapper::configureFullPowerMode() {
     if(currentPowerState == PowerState::Full) return; // already in full power mode
     esp_wifi_set_ps(WIFI_PS_NONE);
+    stateReady = false;
     // Arduino wrapper call (keeps the wrapper’s internal flag in sync)
     WiFi.setSleep(false);
     currentPowerState = PowerState::Full;
@@ -97,13 +119,22 @@ void WiFiWrapper::configureFullPowerMode() {
     if(millis() - lastReconnectAttempt > reconnectInterval){
         lastReconnectAttempt = millis() - reconnectInterval + 5000;
     }
+    BaseType_t res = xTaskCreatePinnedToCore(wifiStatusComplete, "WiFiReady", 1024, nullptr, 0, nullptr, tskNO_AFFINITY);
+    if (res != pdPASS) {
+        gLogger->println("[WiFiWrapper] Failed to create WiFiReady task");
+    }
 }
 
 void WiFiWrapper::configureLowPowerMode() {
     if(currentPowerState == PowerState::Low) return; // already in low power mode
+    stateReady = false;
     esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     WiFi.setSleep(true);
     currentPowerState = PowerState::Low;
+    BaseType_t res = xTaskCreatePinnedToCore(wifiStatusComplete, "WiFiReady", 1024, nullptr, 0, nullptr, tskNO_AFFINITY);
+    if (res != pdPASS) {
+        gLogger->println("[WiFiWrapper] Failed to create WiFiReady task");
+    }
 }
 
 int32_t WiFiWrapper::getSignalStrength() const {

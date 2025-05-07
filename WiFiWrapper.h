@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include "esp_wifi.h"
 #include "LoggingBase.h"
+#include <atomic>
 
 class WiFiWrapper {
 private:
@@ -21,6 +22,8 @@ private:
 
     enum class PowerState { Full, Low };
     PowerState currentPowerState = PowerState::Full;  // or Low if you start that way
+    std::atomic<bool> stateReady{false}; // for thread safety
+    
 
 public:
     enum class SignalLevel {
@@ -32,8 +35,7 @@ public:
         DISCONNECTED
     };
 
-    WiFiWrapper(const char* ssid, const char* password)
-        : ssid(ssid), password(password) {}
+    WiFiWrapper(const char* ssid, const char* password);
 
     void begin(bool connectToNetwork=true, bool lowPowerMode=true);
     bool connect();
@@ -47,6 +49,10 @@ public:
     void configureLowPowerMode();
     void configureNormalPowerMode(){ configureLowPowerMode();} //compatibility
     void configureFullPowerMode();
+
+    void isStateReady()const{
+        return stateReady.load(std::memory_order_acquire);
+    }
     
     void setTXPower(uint8_t power){
         //check if power is in range
@@ -78,6 +84,11 @@ public:
 
     // this is mostly for debugging, reject any state changes from on and connected, even if disconnect etc is called
     void setAlwaysOn(bool set);
+
+    // internal for tasks, do not call directly
+    inline void _setStateReady(bool ready) {
+        stateReady.store(ready, std::memory_order_release);
+    }
 };
 
 #endif
