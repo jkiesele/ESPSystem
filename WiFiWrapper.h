@@ -50,7 +50,7 @@ public:
     void configureNormalPowerMode(){ configureLowPowerMode();} //compatibility
     void configureFullPowerMode();
 
-    void isStateReady()const{
+    inline bool isStateReady()const{
         return stateReady.load(std::memory_order_acquire);
     }
     
