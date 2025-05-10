@@ -23,8 +23,8 @@ private:
     enum class PowerState { Full, Low };
     PowerState currentPowerState = PowerState::Full;  // or Low if you start that way
     std::atomic<bool> stateReady{false}; // for thread safety
+    SemaphoreHandle_t stateMutex{nullptr};
     
-
 public:
     enum class SignalLevel {
         EXCELLENT,
@@ -37,33 +37,31 @@ public:
 
     WiFiWrapper(const char* ssid, const char* password);
 
-    void begin(bool connectToNetwork=true, bool lowPowerMode=true);
-    bool connect();
-    void resume(){ begin(); }
-    void disconnect();
+    ~WiFiWrapper(){
+        if (stateMutex) {
+            vSemaphoreDelete(stateMutex);
+        }
+    }
+    //called outside of threads
+    void begin(bool connectToNetwork=true, bool lowPowerMode=true, bool locked=true);
+
+    bool connect(bool locked=true);
+    void resume(bool locked=true);
+    void disconnect(bool locked=true);
     //after stop begin() must be called again to recover
-    void stop();
+    void stop(bool locked=true);
     //call at least every few seconds, no need for fast polling
     void loop();
-    void checkAndReconnect();
-    void configureLowPowerMode();
-    void configureNormalPowerMode(){ configureLowPowerMode();} //compatibility
-    void configureFullPowerMode();
+    void checkAndReconnect(bool locked=true);
+    void configureLowPowerMode(bool locked=true);
+    void configureNormalPowerMode(bool locked=true){ configureLowPowerMode(locked);} //compatibility
+    void configureFullPowerMode(bool locked=true);
 
     inline bool isStateReady()const{
         return stateReady.load(std::memory_order_acquire);
     }
     
-    void setTXPower(uint8_t power){
-        //check if power is in range
-        if (power < 0 || power > 20) {
-            gLogger->println("Invalid TX power level. Must be between 0 and 20 dBm.");
-            return;
-        }
-        //cast to wifi_power_t
-        wifi_power_t wifiPower = static_cast<wifi_power_t>(power);
-        WiFi.setTxPower(wifiPower);
-    }
+    void setTXPower(uint8_t power, bool locked=true);
 
     // Returns current RSSI in dBm (negative value; e.g., -40 is strong, -90 is weak)
     // If not connected, returns -127
