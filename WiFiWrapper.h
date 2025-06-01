@@ -63,10 +63,13 @@ public:
     
     void setTXPower(uint8_t power, bool locked=true);
 
+
     // Returns current RSSI in dBm (negative value; e.g., -40 is strong, -90 is weak)
     // If not connected, returns -127
     int32_t getSignalStrength() const;
     SignalLevel classifySignalLevel(int32_t rssi) const;
+
+    uint8_t getChannel() const;
 
     void setWakeDuration(uint32_t duration) {
         wakeDuration = duration;

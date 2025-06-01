@@ -50,7 +50,7 @@ void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode,  bool locked)
         configureLowPowerMode(false); 
     else
         configureFullPowerMode(false);
-    setTXPower(8); // Start with 8 dBm
+    setTXPower(8, false); // Start with 8 dBm, not locked
     sleepTimerStartedAt  = millis();
     lastReconnectAttempt = millis();
 }
@@ -225,6 +225,14 @@ WiFiWrapper::SignalLevel WiFiWrapper::classifySignalLevel(int32_t rssi) const {
     } else {
         return SignalLevel::DISCONNECTED;
     }
+}
+
+uint8_t WiFiWrapper::getChannel() const {
+    wifi_second_chan_t secondChannel;
+    uint8_t channel;
+    LockGuard lg(stateMutex);
+    esp_wifi_get_channel(&channel, &secondChannel);
+    return channel;
 }
 
 void WiFiWrapper::keepWiFiAwake() {

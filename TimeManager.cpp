@@ -18,7 +18,7 @@ void TimeManager::begin() {
         this,                 // parameter = our TimeManager*
         tskIDLE_PRIORITY+1,   // priority
         &_syncTaskHandle,     // handle
-        0                     // run on core 1 (or 0)
+        0                     // run on core 0 (arduino runs on 1 usually)
       );
     if (ok != pdPASS) {
         gLogger->println("Failed to create TimeSync task");
