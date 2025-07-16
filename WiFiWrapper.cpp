@@ -77,7 +77,7 @@ bool WiFiWrapper::connect(bool locked){
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-        gLogger->print("\nWiFi Connected! ");
+        gLogger->print("  WiFi Connected! ");
         gLogger->print("IP Address: ");
         gLogger->println(WiFi.localIP().toString());
         return true;

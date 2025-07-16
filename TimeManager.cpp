@@ -31,8 +31,6 @@ void TimeManager::_syncTask(void* pvParameters){
     const TickType_t delayTicks = pdMS_TO_TICKS(60UL*60UL*1000UL);  // one hour
   
     for(;;){
-      vTaskDelay(delayTicks);
-  
       // protect the NTP client
       if(xSemaphoreTake(self->_lock, pdMS_TO_TICKS(500)) == pdTRUE){
         self->syncTime();
@@ -41,6 +39,7 @@ void TimeManager::_syncTask(void* pvParameters){
         // if we cannot take the lock, skip this round
         gLogger->println("TimeSync: failed to acquire lock");
       }
+      vTaskDelay(delayTicks);
     }
   }
 

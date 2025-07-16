@@ -48,6 +48,14 @@ public:
     void loop() {
         //empty
     }
+    bool isSynced() const {
+        if(xSemaphoreTake(_lock, pdMS_TO_TICKS(50))==pdTRUE){
+            bool synced = timeClient.isTimeSet();
+            xSemaphoreGive(_lock);
+            return synced;
+        }
+        return false; // if we cannot take the lock, assume not synced
+    }   
 
     int getHours() {
         int h = 0;
