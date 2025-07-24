@@ -1,6 +1,6 @@
 #include "TouchSensor.h"
 
-TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis)
+TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis=500)
     : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0)
 {
 }
