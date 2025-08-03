@@ -16,7 +16,16 @@ static const uint32_t MINUTE = 60 * SECOND;  // 60,000 ms
 static const uint32_t HOUR   = 60 * MINUTE;  // 3,600,000 ms
 static const uint32_t DAY    = 24 * HOUR;    // 86,400,000 ms
 
+
+
 class TimeManager: public TimeProviderBase {
+    public:
+    static uint32_t minToMs(float m){
+        if (m <= 0) return 0;
+        double ms = static_cast<double>(m) * 60000.0;
+        if (ms > 0xFFFFFFFFu) ms = 0xFFFFFFFFu;
+        return static_cast<uint32_t>(ms + 0.5);
+    };
 private:
     WiFiUDP ntpUDP;
     NTPClient timeClient;
