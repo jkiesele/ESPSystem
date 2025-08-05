@@ -1,5 +1,6 @@
 #include "WiFiWrapper.h"
 #include <LoggingBase.h>
+#include "esp_task_wdt.h"  
 
 
 static WiFiWrapper* instance = nullptr;
@@ -71,8 +72,9 @@ bool WiFiWrapper::connect(bool locked){
     gLogger->print("Connecting to WiFi");
     int attempt = 0;
     while (WiFi.status() != WL_CONNECTED && attempt < 30) {
-        delay(200);
         gLogger->print(".");
+        esp_task_wdt_reset();     // ★ feed the TWDT
+        vTaskDelay(pdMS_TO_TICKS(200));
         attempt++;
     }
 
