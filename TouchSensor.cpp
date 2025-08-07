@@ -8,7 +8,7 @@ TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis)
 void TouchSensor::update() {
     lastValue_ = touchRead(pin_);
 
-    if (!state_) {
+    if (state_) {
         if (lastValue_ < (threshold_ - hysteresis_)) {
             state_ = false;
         }
