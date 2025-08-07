@@ -10,11 +10,11 @@ void TouchSensor::update() {
 
     if (!state_) {
         if (lastValue_ < (threshold_ - hysteresis_)) {
-            state_ = true;
+            state_ = false;
         }
     } else {
         if (lastValue_ > (threshold_ + hysteresis_)) {
-            state_ = false;
+            state_ = true;
         }
     }
 }
