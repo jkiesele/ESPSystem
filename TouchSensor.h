@@ -9,7 +9,7 @@ public:
     bool isActive() const;
 
     void begin() {
-        pinMode(pin_, INPUT);
+        // pinMode(pin_, INPUT);
     }
 
     void setThreshold(uint16_t threshold);

@@ -1,4 +1,5 @@
 #include "TouchSensor.h"
+#include "driver/touch_pad.h"
 
 TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis)
     : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0)
@@ -6,7 +7,13 @@ TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis)
 }
 
 void TouchSensor::update() {
-    lastValue_ = touchRead(pin_);
+    auto thisvalue = touchRead(pin_);
+    if(thisvalue == lastValue_){//should not happen, 
+        touch_pad_fsm_stop();
+        touch_pad_reset();
+        touch_pad_fsm_start();
+    }
+    lastValue_ = thisvalue;
 
     if (state_) {
         if (lastValue_ < (threshold_ - hysteresis_)) {
