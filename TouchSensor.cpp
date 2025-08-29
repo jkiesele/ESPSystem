@@ -2,8 +2,8 @@
 #include "driver/touch_pad.h"
 #include "threadSafeArduino.h"
 
-TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis)
-    : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0)
+TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis,  uint8_t samples)
+    : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0), samples_(samples)
 {
 }
 
@@ -12,13 +12,19 @@ void TouchSensor::update() {
     lastValue_ = thisvalue;
 
     if (state_) {
-        if (lastValue_ < (threshold_ - hysteresis_)) {
-            state_ = false;
+        if (lastValue_ < (threshold_ - hysteresis_) && sampleCount > 0) {
+            sampleCount--;
         }
     } else {
-        if (lastValue_ > (threshold_ + hysteresis_)) {
-            state_ = true;
+        if (lastValue_ > (threshold_ + hysteresis_) && sampleCount < samples_) {
+            sampleCount++;
         }
+    }
+
+    if (sampleCount >= samples_) {
+        state_ = true;
+    } else if (sampleCount == 0) {
+        state_ = false;
     }
 }
 
