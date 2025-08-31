@@ -9,6 +9,8 @@ TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis,  
 
 void TouchSensor::update() {
     auto thisvalue = threadSafe::touchRead(pin_);
+    if(thisvalue == lastValue_)
+        return; // no change => do nothing we might be calling over sampling frequency
     lastValue_ = thisvalue;
 
     if (state_) {
