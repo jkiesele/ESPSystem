@@ -2,8 +2,8 @@
 #include "driver/touch_pad.h"
 #include "threadSafeArduino.h"
 
-TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis,  uint8_t samples)
-    : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0), samples_(samples)
+TouchSensor::TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis,  uint8_t samples, uint8_t nMovingAvg)
+    : pin_(pin), threshold_(threshold), hysteresis_(hysteresis), state_(false), lastValue_(0), samples_(samples), nMovingAvg_(nMovingAvg)
 {
 }
 
@@ -11,7 +11,10 @@ void TouchSensor::update() {
     auto thisvalue = threadSafe::touchRead(pin_);
     if(thisvalue == lastValue_)
         return; // no change => do nothing we might be calling over sampling frequency
-    lastValue_ = thisvalue;
+    
+    //use nMovingAvg_ if >0
+    uint16_t n = nMovingAvg_;
+    lastValue_ = (n * lastValue_ + thisvalue) / (n + 1);
 
     if (state_) {
         if (lastValue_ < (threshold_ - hysteresis_) && sampleCount > 0) {

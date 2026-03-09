@@ -163,6 +163,15 @@ public:
     String getFormattedDateAndTime(uint32_t rawTime) const;
     static  String formattedDateAndTime(uint32_t rawTime);
 
+    bool isInBetween(int startHour, int endHour) {
+        int currentHour = getHour();
+        if (startHour < endHour) {
+            return currentHour >= startHour && currentHour < endHour;
+        } else { // crosses midnight
+            return currentHour >= startHour || currentHour < endHour;
+        }
+    }
+
 };
 
 #endif  // TIME_MANAGER_H
