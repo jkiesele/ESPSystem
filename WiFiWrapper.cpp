@@ -51,7 +51,7 @@ void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode,  bool locked)
         configureLowPowerMode(false); 
     else
         configureFullPowerMode(false);
-    setTXPower(8, false); // Start with 8 dBm, not locked
+    
     sleepTimerStartedAt  = millis();
     lastReconnectAttempt = millis();
 }
