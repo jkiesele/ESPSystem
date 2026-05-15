@@ -39,21 +39,192 @@ WiFiWrapper::WiFiWrapper(const char* ssid, const char* password)
     }
 }
 
-void WiFiWrapper::begin(bool connectToNetwork,  bool lowPowerMode,  bool locked) {
-    LockGuard lg( locked ? stateMutex : nullptr );
-    gLogger->println("Initializing WiFi...");
-    WiFi.mode(WIFI_STA);  // Only connect to router, no AP mode
-    WiFi.persistent(false);  // Prevent storing credentials
+WiFiWrapper::APChoice WiFiWrapper::findBestAPForSSID(bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
 
-    if(connectToNetwork)
-        connect(false) ;
-    if(lowPowerMode)
+    APChoice best;
+
+    gLogger->println("[WiFiWrapper] Scanning for APs with configured SSID...");
+
+    // Synchronous scan.
+    // second argument true = include hidden networks. Harmless for normal SSIDs.
+    int n = WiFi.scanNetworks(false, true);
+
+    if (n <= 0) {
+        gLogger->println("[WiFiWrapper] No WiFi networks found during scan.");
+        WiFi.scanDelete();
+        return best;
+    }
+
+    String targetSSID(ssid);
+
+    for (int i = 0; i < n; ++i) {
+        if (WiFi.SSID(i) != targetSSID) {
+            continue;
+        }
+
+        const uint8_t* bssidPtr = WiFi.BSSID(i);
+        if (!bssidPtr) {
+            continue;
+        }
+
+        int32_t rssi = WiFi.RSSI(i);
+        int32_t channel = WiFi.channel(i);
+
+        gLogger->print("[WiFiWrapper] Candidate ");
+        gLogger->print(WiFi.BSSIDstr(i));
+        gLogger->print(" ch=");
+        gLogger->print(channel);
+        gLogger->print(" RSSI=");
+        gLogger->println(rssi);
+
+        if (!best.valid || rssi > best.rssi) {
+            best.valid = true;
+            best.rssi = rssi;
+            best.channel = channel;
+            memcpy(best.bssid, bssidPtr, 6);
+        }
+    }
+
+    WiFi.scanDelete();
+
+    if (!best.valid) {
+        gLogger->println("[WiFiWrapper] No AP found for configured SSID.");
+        return best;
+    }
+
+    char bssidStr[18];
+    snprintf(
+        bssidStr,
+        sizeof(bssidStr),
+        "%02X:%02X:%02X:%02X:%02X:%02X",
+        best.bssid[0], best.bssid[1], best.bssid[2],
+        best.bssid[3], best.bssid[4], best.bssid[5]
+    );
+
+    gLogger->print("[WiFiWrapper] Best AP: ");
+    gLogger->print(bssidStr);
+    gLogger->print(" ch=");
+    gLogger->print(best.channel);
+    gLogger->print(" RSSI=");
+    gLogger->println(best.rssi);
+
+    return best;
+}
+
+
+bool WiFiWrapper::connectToSpecificAP(const APChoice& ap, bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
+
+    if (!ap.valid) {
+        return false;
+    }
+
+    gLogger->println("[WiFiWrapper] Connecting to selected BSSID...");
+
+    WiFi.disconnect(false, false);
+    vTaskDelay(pdMS_TO_TICKS(200));
+
+    WiFi.begin(ssid, password, ap.channel, ap.bssid);
+
+    gLogger->print("[WiFiWrapper] Connecting");
+    int attempt = 0;
+    while (WiFi.status() != WL_CONNECTED && attempt < 30) {
+        gLogger->print(".");
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        attempt++;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        gLogger->println("\n[WiFiWrapper] BSSID-pinned connection failed.");
+        return false;
+    }
+
+    gLogger->print("\n[WiFiWrapper] Connected to selected AP. IP: ");
+    gLogger->println(WiFi.localIP().toString());
+
+    gLogger->print("[WiFiWrapper] Connected BSSID: ");
+    gLogger->println(WiFi.BSSIDstr());
+
+    gLogger->print("[WiFiWrapper] RSSI: ");
+    gLogger->println(WiFi.RSSI());
+
+    return true;
+}
+
+
+bool WiFiWrapper::connectToBestAvailableAP(bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
+
+    APChoice best = findBestAPForSSID(false);
+
+    if (!best.valid) {
+        return false;
+    }
+
+    return connectToSpecificAP(best, false);
+}
+
+
+bool WiFiWrapper::maybeRoamToBetterAP(bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
+
+    if (WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+
+    int32_t currentRSSI = WiFi.RSSI();
+
+    if (currentRSSI > roamScanThreshold) {
+        return false;
+    }
+
+    gLogger->print("[WiFiWrapper] Current RSSI is weak: ");
+    gLogger->println(currentRSSI);
+
+    APChoice best = findBestAPForSSID(false);
+
+    if (!best.valid) {
+        return false;
+    }
+
+    bool candidateClearlyBetter =
+        best.rssi >= currentRSSI + roamDeltaThreshold;
+
+    bool currentVeryBadAndCandidateGood =
+        currentRSSI < -75 && best.rssi > -68;
+
+    if (!candidateClearlyBetter && !currentVeryBadAndCandidateGood) {
+        gLogger->println("[WiFiWrapper] No sufficiently better AP found. Staying connected.");
+        return false;
+    }
+
+    gLogger->print("[WiFiWrapper] Roaming from RSSI ");
+    gLogger->print(currentRSSI);
+    gLogger->print(" to candidate RSSI ");
+    gLogger->println(best.rssi);
+
+    return connectToSpecificAP(best, false);
+}
+
+void WiFiWrapper::begin(bool connectToNetwork, bool lowPowerMode, bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
+    gLogger->println("Initializing WiFi...");
+    WiFi.mode(WIFI_STA);
+    WiFi.persistent(false);
+
+    if (connectToNetwork)
+        connect(false);
+
+    if (lowPowerMode)
         configureLowPowerMode(false); 
     else
         configureFullPowerMode(false);
-    
+
     sleepTimerStartedAt  = millis();
     lastReconnectAttempt = millis();
+    lastRoamCheck        = millis();
 }
 
 void WiFiWrapper::resume(bool locked) {
@@ -64,16 +235,26 @@ void WiFiWrapper::resume(bool locked) {
     begin(locked);
 }
 
-bool WiFiWrapper::connect(bool locked){
-    LockGuard lg( locked ? stateMutex : nullptr );
-    wifiShouldBeConnected=true;
+bool WiFiWrapper::connect(bool locked) {
+    LockGuard lg(locked ? stateMutex : nullptr);
+
+    wifiShouldBeConnected = true;
+
+    bool connected = connectToBestAvailableAP(false);
+
+    if (connected) {
+        return true;
+    }
+
+    gLogger->println("[WiFiWrapper] Best-AP connection failed. Falling back to normal WiFi.begin().");
+
     WiFi.begin(ssid, password);
 
     gLogger->print("Connecting to WiFi");
     int attempt = 0;
     while (WiFi.status() != WL_CONNECTED && attempt < 30) {
         gLogger->print(".");
-        esp_task_wdt_reset();     // ★ feed the TWDT
+        esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(200));
         attempt++;
     }
@@ -82,11 +263,18 @@ bool WiFiWrapper::connect(bool locked){
         gLogger->print("  WiFi Connected! ");
         gLogger->print("IP Address: ");
         gLogger->println(WiFi.localIP().toString());
+
+        gLogger->print("[WiFiWrapper] Connected BSSID: ");
+        gLogger->println(WiFi.BSSIDstr());
+
+        gLogger->print("[WiFiWrapper] RSSI: ");
+        gLogger->println(WiFi.RSSI());
+
         return true;
-    } else {
-        gLogger->println("\nWiFi Connection Failed!");
-        return false;
     }
+
+    gLogger->println("\nWiFi Connection Failed!");
+    return false;
 }
 
 void WiFiWrapper::disconnect(bool locked){
@@ -114,6 +302,7 @@ void WiFiWrapper::loop() {
     uint32_t tmp_now = millis();
     auto tmp_wifiShouldBeConnected = wifiShouldBeConnected;
     auto tmp_lastReconnectAttempt = lastReconnectAttempt;
+    auto tmp_lastRoamCheck = lastRoamCheck;
     auto tmp_sleepTimerStartedAt = sleepTimerStartedAt;
     auto tmp_autoSleep = autoSleep;
     auto tmp_alwaysOn = alwaysOn;
@@ -122,15 +311,23 @@ void WiFiWrapper::loop() {
     xSemaphoreGive(stateMutex);
 
     if (!tmp_wifiShouldBeConnected) return;
-    //check the timers manually here
-    if(tmp_now - tmp_lastReconnectAttempt > reconnectInterval){
+
+    if (tmp_now - tmp_lastReconnectAttempt > reconnectInterval) {
         xSemaphoreTake(stateMutex, portMAX_DELAY);
         lastReconnectAttempt = tmp_now;
         checkAndReconnect(false);
         xSemaphoreGive(stateMutex);
     }
-    if(tmp_alwaysOn)
-        return; // no need to check sleep state
+
+    if (tmp_now - tmp_lastRoamCheck > roamCheckInterval) {
+        xSemaphoreTake(stateMutex, portMAX_DELAY);
+        lastRoamCheck = tmp_now;
+        maybeRoamToBetterAP(false);
+        xSemaphoreGive(stateMutex);
+    }
+
+    if (tmp_alwaysOn)
+        return;
     if( tmp_wakeDuration > 0 && tmp_autoSleep && 
         ! tmp_arduinoSleep && 
         (tmp_now - tmp_sleepTimerStartedAt) > tmp_wakeDuration){
@@ -142,12 +339,13 @@ void WiFiWrapper::loop() {
 }
 
 void WiFiWrapper::checkAndReconnect(bool locked) {
-    LockGuard lg( locked ? stateMutex : nullptr );
+    LockGuard lg(locked ? stateMutex : nullptr);
+
     if (WiFi.status() != WL_CONNECTED) {
         gLogger->println("WiFi lost! Attempting to reconnect...");
         WiFi.disconnect();
-        delay(100);
-        WiFi.begin(ssid, password); 
+        vTaskDelay(pdMS_TO_TICKS(100));
+        connect(false);
     }
 }
 
@@ -265,4 +463,101 @@ void WiFiWrapper::setAlwaysOn(bool set) {
     else{
         gLogger->println("WiFiWrapper::setAlwaysOn() turned off. Re-init the state you want to be in manually.");
     }
+}
+
+bool WiFiWrapper::isConnected() const {
+    LockGuard lg(stateMutex);
+    return WiFi.status() == WL_CONNECTED;
+}
+
+wl_status_t WiFiWrapper::getWiFiStatus() const {
+    LockGuard lg(stateMutex);
+    return WiFi.status();
+}
+
+String WiFiWrapper::getBSSID() const {
+    LockGuard lg(stateMutex);
+
+    if (WiFi.status() != WL_CONNECTED) {
+        return String("-");
+    }
+
+    return WiFi.BSSIDstr();
+}
+
+String WiFiWrapper::getSSID() const {
+    LockGuard lg(stateMutex);
+
+    if (WiFi.status() != WL_CONNECTED) {
+        return String("-");
+    }
+
+    return WiFi.SSID();
+}
+
+String WiFiWrapper::getLocalIP() const {
+    LockGuard lg(stateMutex);
+
+    if (WiFi.status() != WL_CONNECTED) {
+        return String("-");
+    }
+
+    return WiFi.localIP().toString();
+}
+
+String WiFiWrapper::getGatewayIP() const {
+    LockGuard lg(stateMutex);
+
+    if (WiFi.status() != WL_CONNECTED) {
+        return String("-");
+    }
+
+    return WiFi.gatewayIP().toString();
+}
+
+String WiFiWrapper::getHostname() const {
+    LockGuard lg(stateMutex);
+
+    const char* hostname = WiFi.getHostname();
+    if (!hostname) {
+        return String("-");
+    }
+
+    return String(hostname);
+}
+
+String WiFiWrapper::getConnectionSummary() const {
+    LockGuard lg(stateMutex);
+
+    String s;
+
+    if (WiFi.status() != WL_CONNECTED) {
+        s += "WiFi: disconnected";
+        s += " | status: ";
+        s += String(static_cast<int>(WiFi.status()));
+        return s;
+    }
+
+    wifi_second_chan_t secondChannel;
+    uint8_t channel = 0;
+    esp_wifi_get_channel(&channel, &secondChannel);
+
+    const char* hostname = WiFi.getHostname();
+
+    s += "WiFi: connected";
+    s += " | IP: ";
+    s += WiFi.localIP().toString();
+    s += " | host: ";
+    s += hostname ? String(hostname) : String("-");
+    s += " | SSID: ";
+    s += WiFi.SSID();
+    s += " | BSSID: ";
+    s += WiFi.BSSIDstr();
+    s += " | ch: ";
+    s += String(channel);
+    s += " | RSSI: ";
+    s += String(WiFi.RSSI());
+    s += " dBm";
+
+    return s;
 }

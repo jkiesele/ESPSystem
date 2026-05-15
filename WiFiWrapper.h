@@ -24,6 +24,26 @@ private:
     PowerState currentPowerState = PowerState::Full;  // or Low if you start that way
     std::atomic<bool> stateReady{false}; // for thread safety
     SemaphoreHandle_t stateMutex{nullptr};
+
+//multi BSSID handling
+    struct APChoice {
+        bool valid = false;
+        int32_t rssi = -127;
+        int32_t channel = 0;
+        uint8_t bssid[6] = {0, 0, 0, 0, 0, 0};
+    };
+
+    static constexpr uint32_t roamCheckInterval = 30UL * 60UL * 1000UL; // 30 min
+    static constexpr int32_t roamScanThreshold = -70;   // dBm: scan only if current RSSI is this bad or worse
+    static constexpr int32_t roamDeltaThreshold = 10;   // dB: candidate must be this much better
+
+    uint32_t lastRoamCheck = 0;
+
+    APChoice findBestAPForSSID(bool locked = true);
+    bool connectToBestAvailableAP(bool locked = true);
+    bool connectToSpecificAP(const APChoice& ap, bool locked = true);
+    bool maybeRoamToBetterAP(bool locked = true);
+
     
 public:
     enum class SignalLevel {
@@ -43,7 +63,7 @@ public:
         }
     }
     //called outside of threads
-    void begin(bool connectToNetwork=true, bool lowPowerMode=true, bool locked=true);
+    void begin(bool connectToNetwork=true, bool lowPowerMode=false, bool locked=true);
 
     bool connect(bool locked=true);
     void resume(bool locked=true);
@@ -86,10 +106,23 @@ public:
     // this is mostly for debugging, reject any state changes from on and connected, even if disconnect etc is called
     void setAlwaysOn(bool set);
 
+    bool isConnected() const;
+    String getBSSID() const;
+    String getSSID() const;
+    String getLocalIP() const;
+    String getGatewayIP() const;
+    String getHostname() const;
+    wl_status_t getWiFiStatus() const;
+
+    String getConnectionSummary() const;
+
     // internal for tasks, do not call directly
     inline void _setStateReady(bool ready) {
         stateReady.store(ready, std::memory_order_release);
     }
+
+    
+
 };
 
 #endif
