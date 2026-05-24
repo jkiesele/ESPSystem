@@ -3,7 +3,8 @@
 
 class TouchSensor {
 public:
-    TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis = 200, uint8_t samples = 3, uint8_t nMovingAvg = 0);
+    TouchSensor(uint8_t pin, uint16_t threshold, uint16_t hysteresis = 200, uint8_t samples = 3, uint8_t nMovingAvg = 0,
+    int referencePin=-1);
 
     void update();  // Call this in loop()
     bool isActive() const;
@@ -28,4 +29,5 @@ private:
     uint8_t samples_;
     uint8_t sampleCount = 0;
     uint8_t nMovingAvg_;
+    int referencePin_;
 };
